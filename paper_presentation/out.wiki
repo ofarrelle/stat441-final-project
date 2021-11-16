@@ -1,0 +1,116 @@
+== A Brief Comment on Our Review ==
+
+The paper we are reviewing relies on proofs that are both technical and lengthy. The authors use 9 lemmas spanning order statistics, random matrix theory and probability theory in order to prove the main results. Furthermore, the authors provide 4 pruning techniques (with corresponding proofs). However these proofs are all quite similar. Consequently, we will not present the technical details of the proof, since we feel this would be too long and too complicated for a (relatively) short review. Instead, we hope to:
+
+# Clarify the terminology used by the authors.
+# Explain how this terminology intuitively describes pruning technique.
+# Explain why the assumptions made in the magnitude based pruning technique are required.
+# Briefly comment on the validity of these assumptions.
+
+== Clarifying the Objects of Study ==
+
+In  the authors define the following standard objects and notation:
+
+* <math display="inline">L+1</math> denotes the depth the neural network (alternatively there are <math display="inline">L</math> hidden layers), with <math display="inline">l\in\{1,...,L\}</math> indexing hidden layers (the input layer is denoted with <math display="inline">l=0</math>).
+* <math display="inline">d_{l}</math> denotes the number of nodes in the hidden layer <math display="inline">l\in\{1,...,L\}</math>.
+* Let <math display="inline">v\in\mathbb{R}^{d_{l}}</math>. The <math display="inline">L_{0}</math> norm of <math display="inline">v</math> is denoted <math display="inline">||v||_{0}</math>, and specifies the number of non-zero entries in <math display="inline">v</math>. The <math display="inline">L_{2}</math> norm of <math display="inline">v</math> is denotes <math display="inline">||v||_{2}</math>, which denotes the Euclidean “standard” norm <math display="inline">||v||_{2}=\sqrt{v^{T}v}</math>.
+* Let <math display="inline">A\in\mathbb{R}^{m\times n}</math> . The vectorization of <math display="inline">A</math> is defined as follows: <math display="block">\text{vec}(A)=\left[A_{1,1},...,A_{1,n},...,A_{m,1},...,A_{m,n}\right]^{T}\in\mathbb{R}^{m\cdot n}</math> where we use <math display="inline">``\cdot"</math> to dinstinguish <math display="inline">\mathbb{R}^{m\cdot n}</math> (a set of vectors with dimension <math display="inline">m\cdot n</math>) from <math display="inline">\mathbb{R}^{m\times n}</math> (the set of linear operators <math display="inline">V</math> such that <math display="inline">V:\mathbb{R}^{m}\rightarrow\mathbb{R}^{n})</math>.
+* Let <math display="inline">A\in\mathbb{R}^{m\times n}</math> , then the induced 2-norm of <math display="inline">A</math> is defined as <math display="block">||A||_{2}=\sigma_{\max}(A)</math> where <math display="inline">\sigma_{\max}(A)</math> denotes the largest singular value of <math display="inline">A</math>.
+* If <math display="inline">A,B\in\mathbb{R}^{m\times n}</math> then <math display="inline">A\circ B</math> denotes the Hadamard product so that <math display="inline">\left[A\circ B\right]_{ij}=A_{ij}B_{ij};\ i\in\{1,...,m\},\ j\in\{1,...,n\}</math>.
+* <math display="inline">\mathcal{U}[a,b]</math> denotes the uniform distribution on <math display="inline">[a,b]</math> and <math display="inline">\mathcal{N}(\mu,\Sigma)</math> denotes the multivariate normal distribution.
+* <math display="inline">\sigma_{l}:\mathbb{R\rightarrow\mathbb{R}},\ l\in\{1,...,L\}</math> is the activation function associated with layer <math display="inline">l</math>. <math display="inline">W_{l}^{*}\in\mathbb{R}^{d_{l}\times d_{l-1}},\ l\in\{0,...,L\}</math> denotes the weight matrix of this layer.
+* The target network is defined as <math display="inline">F(x)=W_{l}^{*}\sigma_{l-1}(W_{l-1}^{*}\sigma_{l-1}(\cdots W_{2}^{*}\sigma_{1}(W_{1}^{*}x)))</math> and is just the functional representation of a neural network. It is assumed activation functions act componentwise on their inputs.
+
+The authors in  also define the some more idiosyncratic objects:
+
+* The number of weights in the <math display="inline">l^{\text{th}}</math> layer is denoted <math display="inline">D_{l}:=d_{l}d_{l-1}</math>.
+* A mask matrix <math display="inline">M\in[0,1]^{m\times n}</math> is just an <math display="inline">m\times n</math> valued matrix whose entries are identically <math display="inline">0</math> or <math display="inline">1</math>.
+* A pruned weight matrix corresponding to the weight matrix <math display="inline">W_{l}^{*}</math> of a fully connected network is given by <math display="inline">W_{l}=M_{l}\circ W_{l}^{*}</math> where <math display="inline">M_{l}</math> is a mask matrix.
+* A pruning <math display="inline">f(x)</math> of the target network <math display="inline">F(x)</math> is defined as <math display="inline">f(x)=W_{l}\sigma_{l-1}(W_{l-1}\sigma_{l-1}(\cdots W_{2}\sigma_{1}(W_{1}x)))</math>.
+* Let <math display="inline">W_{l}</math> be a pruned weight matrix for layer <math display="inline">l</math>. The compression ratio of layer <math display="inline">l</math> is defined as <math display="block">\gamma_{l}:=\frac{||\text{vec}(W_{l})||_{0}}{D_{l}}</math>
+* <math display="inline">f(x)</math> is said to be <math display="inline">\epsilon</math>-close to <math display="inline">F(x)</math> iff <math display="block">\sup_{x\in\mathcal{B}_{d_{0}}}||f(x)-F(x)||<\epsilon</math> where <math display="inline">\mathcal{B}_{d_{0}}:=\left\{ x\in\mathbb{R}^{d_{0}}\ |\ ||x||_{2}\leq1\right\}</math> denotes the <math display="inline">d_{0}</math> unit-ball with the Euclidean norm.
+
+== Intuition Behind the Objects ==
+
+In general the objects defined above are either defined to formally express a pruned network, or to provide some measure of efficacy for a given pruned network. In the former category are mask matrices, pruned weight matrices and prunings of the target network. The latter consists of <math display="inline">\epsilon</math>-closeness and the compression ratio.
+
+Intuitively, the mask matrix can be thought of as a “switch” which allows or blocks certain components of the previous layer to modify the input of the activation’s output. This can be seen with a toy example. Suppose that for some layer <math display="inline">l</math> of a FCN, the weight function is given as follows <math display="block">W_{l}^{*}=\left[\begin{array}{cc}
+1 & 2\\
+4 & 5\\
+7 & 8
+\end{array}\right]</math> Now consider the mask matrix <math display="block">M_{l}=\left[\begin{array}{cc}
+1 & 1\\
+0 & 1\\
+1 & 0
+\end{array}\right]</math> This mask induces a pruned weight matrix <math display="inline">W_{l}</math> <math display="block">W_{l}=\left[\begin{array}{cc}
+1 & 1\\
+0 & 1\\
+1 & 0
+\end{array}\right]\circ\left[\begin{array}{cc}
+1 & 2\\
+4 & 5\\
+7 & 8
+\end{array}\right]=\left[\begin{array}{cc}
+1 & 2\\
+0 & 5\\
+7 & 0
+\end{array}\right]</math> Now suppose the input from the previous layer is given by <math display="inline">x=[x_{1},x_{2}]^{T}</math>, then <math display="block">z:=W_{l}x=\left[\begin{array}{c}
+x_{1}+2x_{2}\\
+5x_{2}\\
+7x_{1}
+\end{array}\right]\neq\left[\begin{array}{c}
+x_{1}+2x_{2}\\
+4x_{1}+5x_{2}\\
+7x_{1}+8x_{2}
+\end{array}\right]=W_{l}^{*}x=:z^{*}</math> Hence we see that the activation input is different between the pruned and unpruned weight matrices. But crucially, the <math display="inline">i^{\text{th}}</math> component <math display="inline">x_{i}</math> of the weight matrix input <math display="inline">x</math> has no influence of the <math display="inline">j^{\text{th}}</math> component <math display="inline">z_{j}</math> of the activation input <math display="inline">z</math> if <math display="inline">\left[M_{l}\right]_{ji}=0</math>, and the influence of the <math display="inline">x_{i}</math> on <math display="inline">z_{j}</math> is unaltered when <math display="inline">\left[M_{l}\right]_{ji}=0</math>. This is what we mean by saying <math display="inline">M_{l}</math> switches — or prunes — connections in a weight matrix. Its effect is tantamount to severing a connection between the inputs of a weight matrix (or, outputs of the previous layer’s activation function) and the inputs of the layer’s activation function.
+
+Since <math display="inline">W_{l}=M\circ W_{l}^{*}</math>, <math display="inline">W_{l}</math> is naturally interpreted as the weight matrix of a network that has had its connections pruned by <math display="inline">M_{l}</math>. Finally, <math display="inline">f(x)</math> has the same same general architecture as <math display="inline">F(x)</math> — its activation functions, number of layers and nodes<ref>If every <math display="inline">M_{ji}=0</math> for some <math display="inline">i\in d_{l-1}</math>, then it is clear the value of <math display="inline">x_{i}^{l}</math> will make no contribution to the vector <math display="inline">z</math>. However, strictly speaking the <math display="inline">i^{\text{th}}</math>node of layer <math display="inline">l-1</math> is still part of the network — it’s just vestigial.</ref> are the same as <math display="inline">F(x)</math>. The only difference between <math display="inline">f(x)</math> and <math display="inline">F(x)</math> is that the former uses pruned weight vectors, while the latter uses the original, unpruned weight vectors. In this way it is clear that <math display="inline">f(x)</math> just represents a subnetwork of <math display="inline">F(x)</math> which has had its connections pruned as specified by the matrices <math display="inline">M_{l},\ l\in\{1,...,L\}</math>.
+
+The discussion above makes it clear that <math display="inline">f(x),M_{l},W_{l}</math> are defined as a means of formally representing a pruned subnetwork of some FCN. However, we ultimately wish to describe the efficacy of the pruned network. Of particular imporance are how much “smaller” the pruned subnetwork is compared to its corresponding FCN, and the discrepancies between the predictions of the pruned and FC network.
+
+The former notion is captured by the compression ratio <math display="inline">\gamma_{l}</math>. In particular this ratio can be interpreted as the percentage of connections that are left in the neural network after pruning. So if <math display="inline">\gamma_{l}=0.18</math>, only <math display="inline">18\%</math> of the original connections between layers <math display="inline">l</math> and <math display="inline">l-1</math> remain. This can be seen in the extreme cases where a masking matrix <math display="inline">M_{l}</math> for some FC weight matrix <math display="inline">W_{l}^{*}</math> has entries that are identically <math display="inline">0</math> or <math display="inline">1</math>. In the first case, it is clear that every entry of <math display="inline">M_{l},\ \text{vec}(M_{l})</math> are zero, so that <math display="inline">||\text{vec}(W_{l})||_{0}=0</math> and <math display="inline">\gamma_{l}=||\text{vec}(W_{l})||_{0}/D_{l}=0</math>. Meanwhile if <math display="inline">M_{l}</math> has all entries equal to <math display="inline">1</math> then <math display="inline">||\text{vec}(M_{l}\circ W_{l}^{*})||_{0}=d_{l}d_{l-1}=D_{k}</math> so <math display="inline">\gamma_{l}=1</math>. Every other case falls in between these two extremes, since <math display="inline">0\leq||\text{vec}(W_{l})||_{0}\leq D_{k}</math> clearly.
+
+Returning to our toy example, we see that <math display="block">W_{l}=\left[\begin{array}{cc}
+1 & 2\\
+0 & 5\\
+7 & 0
+\end{array}\right]\Rightarrow||\text{vec}(W_{l})||_{0}=3\Rightarrow\gamma_{l}=\frac{||\text{vec}(W_{l})||_{0}}{d_{l}\cdot d_{l-1}}=\frac{3}{3\cdot2}=0.5</math> which again describes the percentage of connections which have not been pruned.
+
+Finally <math display="inline">\epsilon</math>-closeness can be interpreted as a guaranteed accuracy. By selecting <math display="inline">x\in\mathcal{B}_{d_{0}}</math> that causes the largest discrepancy between the values of <math display="inline">f(\cdot)</math> and <math display="inline">F(\cdot)</math>, <math display="inline">f(\cdot)</math> and <math display="inline">F(\cdot)</math> are <math display="inline">\epsilon</math>-close if even in the worst case scenario the discrepancy between the <math display="inline">f(\cdot)</math> and <math display="inline">F(\cdot)</math> is less than <math display="inline">\epsilon</math>.
+
+With this intuition in mind, the goal of a pruning algorithm can be cast in a more technical form: given a FCN <math display="inline">F(\cdot)</math>, find a set of masking matrices <math display="inline">\{M_{1},...,M_{l}\}</math> so that for a given <math display="inline">\epsilon</math> the corresponding pruned network <math display="inline">f(\cdot)</math> has the smallest possible compression ratios <math display="inline">\{\gamma_{1},...,\gamma_{l}\}</math> while remaining <math display="inline">\epsilon</math>-close to <math display="inline">F(\cdot)</math>.
+
+== The Main Result: Magnitude Based Pruning ==
+
+Specifying a pruned subnetwork <math display="inline">f(\cdot)</math> is tantamount to determining a set of masking matrices. One approach for selecting <math display="inline">M</math> considered by the authors is so-called “magnitude based pruning”. This method begins by ordering the entries of a FC weight matrix <math display="inline">W_{l}^{*}</math> by magnitude <math display="block">|W_{l}^{*}|_{i_{1},j_{1}}\leq\cdots\leq|W_{l}^{*}|_{i_{d_{l}},j_{d_{l}}}</math> where <math display="inline">i_{n},j_{n}</math> refer to the index of the entry in <math display="inline">W_{l}^{*}</math> with the <math display="inline">n^{\text{th}}</math> smallest magnitude (<math display="inline">n\in\{1,...,D_{k}\}</math>). Then <math display="inline">M_{l}</math> is set by first specifying the desired compression ratio <math display="inline">\gamma_{l}</math>, setting the entries of <math display="inline">M_{l}</math> corresponding to the smallest <math display="inline">\lfloor\gamma_{l}D_{l}\rfloor</math> components of <math display="inline">W_{l}^{*}</math> to zero, and the rest to one.
+
+With this context, we state the main result of the paper:<br />
+<br />
+'''Theorem 1 of''' ''':''' ''Suppose that <math display="inline">F</math> is a FC target network and that:''
+
+; <span>''(i)''</span>
+: ''<math display="inline">\sigma_{l}</math> is Lipschitz continuous with constant <math display="inline">K_{l},\ \forall l\in\{1,...,L\}</math>''
+; <span>''(ii)''</span>
+: ''<math display="inline">d:=\min\{d_{1},...,d_{L-1}\}\geq\max\{d_{0},d_{L}\}</math>''
+; <span>''(iii)''</span>
+: ''The entries in <math display="inline">W_{k}^{*}</math> are iid following <math display="block">\left[W_{k}^{*}\right]_{i,j}\sim\mathcal{U}\left[-\frac{K}{\sqrt{\max\{d_{l},d_{l-1}\}}},\frac{K}{\sqrt{\max\{d_{l},d_{l-1}\}}}\right];\ i\in\{1,...,d_{l}\},i\in\{1,...,d_{l-1}\}</math> where <math display="inline">K</math> is a fixed positive constant.''
+
+''Let <math display="inline">\epsilon,\delta>0,\alpha\in(0,1)</math> so that <math display="block">d\geq\max\left\{ C_{1}^{\frac{1}{\alpha}},\left(\frac{C_{2}}{\epsilon}\right)^{\frac{1}{\alpha}},\left(\frac{C_{3}}{\delta}\right)^{\frac{1}{\alpha}},C_{4}+C_{5}\log\left(\frac{1}{\delta}\right)\right\}</math> For <math display="inline">C_{1},...,C_{5}</math> depending on values of <math display="inline">l,K_{l}</math>. Then with probability at least <math display="inline">1-\delta</math>, the subnetwork <math display="inline">f</math> of <math display="inline">F</math> with mask <math display="inline">M=\left\{ M_{1},...,M_{L}\ |\ M_{l}\in\{0,1\}^{d_{l}\times d_{l-1}}\right\}</math> pruning the smallest <math display="inline">\lfloor D_{l}^{1-\alpha}\rfloor</math> entries of <math display="inline">W_{l}^{*},\ l\in\{1,...,L\}</math> based on magnitude is <math display="inline">\epsilon</math>-close to <math display="inline">F</math>, i.e. <math display="block">\sup_{x\in\mathcal{B}_{d_{0}}}||f(x)-F(x)||_{2}\leq\epsilon</math>''
+
+We note that <math display="inline">\alpha</math> effectively specifies <math display="inline">\gamma_{l}=D_{l}^{-\alpha}</math>, so although it is not directly stated in the theorem, the compression ratio is present.
+
+== Unpacking and Justifying the Assumptions:  ==
+
+As previously stated we will not provide a full characterization of the proof. Instead, we clarify why the authors made the three assumptions that appear in the theorem.
+
+First, we comment on the Lipschitz continuity of <math display="inline">\sigma_{k}</math>. For our purposes function <math display="inline">g:\mathbb{R}^{n}\rightarrow\mathbb{R}^{n}</math> is Lipschitz continuous iff <math display="block">||g(x)-g(y)||_{2}\leq K||x-y||_{2}</math> for any <math display="inline">x,y\in\mathbb{R}^{n}</math> (see  for more details on Lipschitz continuity). The intuition when <math display="inline">g:\mathbb{R}\rightarrow\mathbb{R}</math> is that <math display="inline">g</math> is Lipschitz just when its value never changes quicker than the function <math display="inline">h(x)=Kx</math>. The reason the activation functions are Lipschitz continuous is just because the proof of the main theorem relies on random matrix theory and, in particular, the probability that the 2-norms of random matrices exceed certain bounds. By ensuring that <math display="block">||\sigma(z_{l}^{*})-\sigma(z_{l})||_{2}\leq K_{l}||W_{l}^{*}x_{l}-W_{l}x_{l}||_{2}</math> the authors are able to extend the results of bounding the difference between vectors under random matrices, to bounding the difference between vectors under non-linear transformations (see section 4 of ). So, the results of random matrix theory can be harnessed to prove the main results.
+
+The second assumption is largely used to provide tighter bounds on the probabilities given in the relevant theorem. As such its role is mostly related to technical details (again see section 4 of ).
+
+Finally, the third assumption is by far the most important assumption. As previously mentionned, the main proof relies on a few theorems imported from random matrix theory . In particular, the main theorem heavily relies on , of which the former only applies to independent, mean zero random matrices with finite fourth moments and the latter which applies to (sub-Gaussian) iid random matrices.
+
+The first two assumptions are easy to justify. For the first assumption, we note that in practice most activation functions are Lipschitz continuous. For instance, the sigmoid, ReLU, tanh and softmax functions are all Lipschitz continuous with <math display="inline">K=1</math> (see ). So this is clearly a reasonable assumption. The second assumption is even easier to justify. One can simply set all <math display="inline">d\geq\max\{d_{0},d_{l}\}</math> when designing the architecture of the FCN <math display="inline">F(\cdot)</math>. Hence the first two assumptions will almost always hold in practice.
+
+Unlike the first two assumptions, the third assumption is not evidently the case. Assuming that <math display="inline">\{W_{l}^{*}\ |\ l\in\{1,...,L\}\}</math> are i.i.d. random is a priori strong assumption with no particularly strong justification. Given this difficulty, the authors essentially argue that because (1) there is no way to effectively measure how close weights are to independence, (2) some literature — namely — suggests that weights in a trained network do not deviate strongly from their initial values. However, in our view it is clear that this constitutes only a partial, if not promising, justification for assumption (iii). Consequently the most important assumption for the main theorem is also the least secure.
+
+<references />
