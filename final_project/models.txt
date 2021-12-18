@@ -1,0 +1,7 @@
+NN - tabular only
+XGBoost -  tabular only
+CNN - images only
+CNN - images and tabular
+Pretrained model(MobileNet) - images only
+Pretrained model(MobileNet) - images and tabular
+Efficientnet and CatBoost(WIP, planning on replacing CatBoost with XGBoost
